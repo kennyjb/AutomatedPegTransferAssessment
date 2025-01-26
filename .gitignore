@@ -1,0 +1,11 @@
+# VSCode workspace
+.vscode/
+
+# python workspace and cache
+__pycache__/
+venv/
+
+# model, video, and result directories
+model/
+Videos/
+output/
