@@ -29,6 +29,64 @@ FRAME_HEIGHT_MM_PER_PIX = FRAME_HEIGHT_MM / FRAME_HEIGHT_PIX
 
 NUM_PEGS = 6
 
+def extract_info(detections):
+    # combine all relevant detections and sort by confidence
+    sorted_detections = [(1, x[0], x[1]) for x in detections[1]] + \
+                        [(2, x[0], x[1]) for x in detections[2]] + \
+                        [(5, x[0], x[1]) for x in detections[5]] + \
+                        [(6, x[0], x[1]) for x in detections[6]] + \
+                        [(7, x[0], x[1]) for x in detections[7]] + \
+                        [(10, x[0], x[1]) for x in detections[10]]
+    sorted_detections.sort(key=lambda x: x[1], reverse=True)
+
+    # init flags/counts
+    left_carry_flag = 0
+    right_carry_flag = 0
+    transfer_flag = 0
+    out_field_flag = 0
+    on_peg_count = 0
+    drop_count = 0
+    flag_chosen = False
+    pegs_found = 0
+
+    # iterate through detections (highest->lowest confidence)
+    for detection in sorted_detections:
+        # check for carry/transfer/out-of-field flags, if not yet chosen
+        # left carry
+        if detection[0] == 6 and not flag_chosen:
+            left_carry_flag = 1
+            flag_chosen = True
+            pegs_found += 1
+        # right carry
+        elif detection[0] == 5 and not flag_chosen:
+            right_carry_flag = 1
+            flag_chosen = True
+            pegs_found += 1
+        # transfer
+        elif detection[0] == 7 and not flag_chosen:
+            transfer_flag = 1
+            flag_chosen = True
+            pegs_found += 1
+        # out-of-field
+        elif detection[0] == 10 and not flag_chosen:
+            out_field_flag = 1
+            flag_chosen = True
+            pegs_found += 1
+        # check for on/dropped pegs
+        # on-peg
+        elif detection[0] == 1:
+            on_peg_count += 1
+            pegs_found += 1
+        # out-peg
+        elif detection[0] == 2:
+            drop_count += 1
+            pegs_found += 1
+        # only continue if more pegs need to be found
+        if pegs_found == 6:
+            break
+    
+    return left_carry_flag, right_carry_flag, transfer_flag, out_field_flag, on_peg_count, drop_count
+
 def calculate_bounding_box_center(box):
     box_tl = (int(box[1] * FRAME_WIDTH_PIX), int(box[0] * FRAME_HEIGHT_PIX))
     box_br = (int(box[3] * FRAME_WIDTH_PIX), int(box[2] * FRAME_HEIGHT_PIX))
@@ -91,49 +149,22 @@ def main():
             top_detections = run_object_detection(detection_model, top_frame)
             front_detections = run_object_detection(detection_model, front_frame)
 
-            # check for left carry
-            if len(top_detections[6]) > 0 or len(front_detections[6]) > 0:
-                print("Left Carry")
-                left_carry_flag = 1
-            else:
-                left_carry_flag = 0
+            # extract flags and counts from top camera
+            top_left_carry_flag, top_right_carry_flag, top_transfer_flag, top_out_field_flag, \
+                top_on_peg_count, top_drop_count = extract_info(top_detections)
+            # extract flags and counts from front camera
+            front_left_carry_flag, front_right_carry_flag, front_transfer_flag, front_out_field_flag, \
+                front_on_peg_count, front_drop_count = extract_info(front_detections)
+            
+            # use or logic between cameras for flags
+            left_carry_flag = top_left_carry_flag | front_left_carry_flag
+            right_carry_flag = top_right_carry_flag | front_right_carry_flag
+            transfer_flag = top_transfer_flag | front_transfer_flag
+            out_field_flag = top_out_field_flag | front_out_field_flag
 
-            # check for right carry
-            if len(top_detections[5]) > 0 or len(front_detections[5]) > 0:
-                print("Right Carry")
-                right_carry_flag = 1
-            else:
-                right_carry_flag = 0
-            
-            # check for transfer
-            if len(top_detections[7]) > 0 or len(front_detections[7]) > 0:
-                print("Transfer")
-                transfer_flag = 1
-            else:
-                transfer_flag = 0
-            
-            # check for out-of-field
-            if len(top_detections[10]) > 0 or len(front_detections[10]) > 0:
-                print("Out-of-Field")
-                out_field_flag = 1
-            else:
-                out_field_flag = 0
-            
-            # calculate on-peg and drop count
-            # sort top camera detected pegs
-            top_detected_pegs = [(0, x[0], x[1]) for x in top_detections[1]] + [(1, x[0], x[1]) for x in top_detections[2]]
-            top_detected_pegs.sort(key=lambda x: x[1], reverse=True)
-            top_detected_pegs = top_detected_pegs[0:NUM_PEGS]
-            # sort front camera detected pegs
-            front_detected_pegs = [(0, x[0], x[1]) for x in front_detections[1]] + [(1, x[0], x[1]) for x in front_detections[2]]
-            front_detected_pegs.sort(key=lambda x: x[1], reverse=True)
-            front_detected_pegs = front_detected_pegs[0:NUM_PEGS]
-            # average camera peg counts
-            detected_pegs = top_detected_pegs + front_detected_pegs
-            on_peg_count = sum(1 for x in detected_pegs if x[0] == 0) // 2
-            drop_count = sum(1 for x in detected_pegs if x[0] == 1) // 2
-            print(f"On-Peg Count: {on_peg_count}")
-            print(f"Drop Count: {drop_count}")
+            # use max logic between cameras for peg count
+            on_peg_count = max(top_on_peg_count, front_on_peg_count)
+            drop_count = max(top_drop_count, front_drop_count)
 
             # get left grasper center and height (if found)
             # check for Grasper_L in both frames
