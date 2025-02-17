@@ -130,6 +130,12 @@ def main():
         output_file_writer.writerow(["Frame Number", 
                                      "Carry_L", "Carry_R", "Transfer", "Out_Field", "On_Peg_Cnt", "Drop_Cnt", 
                                      "Dis_Cam1_L", "Dis_Cam1_R", "H_Cam2_L", "H_Cam2_R", "LPA", "RPA", "FPA"])
+        
+        # init grasper positions vars to None
+        top_left_grasper_pos = None
+        top_right_grasper_pos = None
+        front_left_grasper_pos = None
+        front_right_grasper_pos = None
 
         # process camera frames
         frame_number = 0
@@ -150,39 +156,20 @@ def main():
             front_detections = run_object_detection(detection_model, front_frame)
 
             # extract flags and counts from top camera
-            top_left_carry_flag, top_right_carry_flag, top_transfer_flag, top_out_field_flag, \
-                top_on_peg_count, top_drop_count = extract_info(top_detections)
-            # extract flags and counts from front camera
-            front_left_carry_flag, front_right_carry_flag, front_transfer_flag, front_out_field_flag, \
-                front_on_peg_count, front_drop_count = extract_info(front_detections)
-            
-            # use or logic between cameras for flags
-            left_carry_flag = top_left_carry_flag | front_left_carry_flag
-            right_carry_flag = top_right_carry_flag | front_right_carry_flag
-            transfer_flag = top_transfer_flag | front_transfer_flag
-            out_field_flag = top_out_field_flag | front_out_field_flag
-
-            # use max logic between cameras for peg count
-            on_peg_count = max(top_on_peg_count, front_on_peg_count)
-            drop_count = max(top_drop_count, front_drop_count)
+            left_carry_flag, right_carry_flag, transfer_flag, out_field_flag, \
+                on_peg_count, drop_count = extract_info(top_detections)
 
             # get left grasper center and height (if found)
             # check for Grasper_L in both frames
             if len(top_detections[4]) > 0 and len(front_detections[4]) > 0:
                 top_left_grasper_pos = calculate_bounding_box_center(top_detections[4][0][1])
                 front_left_grasper_pos = calculate_bounding_box_center(front_detections[4][0][1])
-            else:
-                top_left_grasper_pos = None
-                front_left_grasper_pos = None
 
             # get right grasper center and height (if found)
             # check for Grasper_R in both frames
             if len(top_detections[3]) > 0 and len(front_detections[3]) > 0:
                 top_right_grasper_pos = calculate_bounding_box_center(top_detections[3][0][1])
                 front_right_grasper_pos = calculate_bounding_box_center(front_detections[3][0][1])
-            else:
-                top_right_grasper_pos = None
-                front_right_grasper_pos = None
 
             # check if graspers found for fuzzy logic assessment
             if top_left_grasper_pos is not None and top_right_grasper_pos is not None and front_left_grasper_pos is not None and front_right_grasper_pos is not None:

@@ -7,8 +7,8 @@ INPUT_ACCELERATOR_VIDEO_FILENAME = "./output/accelerator_output.mp4"
 OUTPUT_VIDEO_FILENAME = "./output/final_output.mp4"
 
 CAMERA_FRAME_SIZE = (1600, 1200)
-ACCELERATOR_VIDEO_FRAME_SIZE = (600, 300)
-OUTPUT_FRAME_SIZE = (1600, 900)
+ACCELERATOR_VIDEO_FRAME_SIZE = (600, 320)
+OUTPUT_FRAME_SIZE = (1600, 920)
 FPS = 30
 
 def main():
@@ -31,8 +31,10 @@ def main():
         top_frame = cv2.resize(top_frame, None, fx=0.5, fy=0.5)
         front_frame = cv2.resize(front_frame, None, fx=0.5, fy=0.5)
         output_frame = np.concatenate((top_frame, front_frame), axis=1)
-        accelerator_frame = cv2.resize(accelerator_frame, (OUTPUT_FRAME_SIZE[0], ACCELERATOR_VIDEO_FRAME_SIZE[1]))
-        output_frame = np.concatenate((output_frame, accelerator_frame), axis=0)
+        (height, width, _) = np.shape(accelerator_frame)
+        new_accelerator_frame = np.zeros((ACCELERATOR_VIDEO_FRAME_SIZE[1], OUTPUT_FRAME_SIZE[0], 3), dtype=np.uint8)
+        new_accelerator_frame[0:height, 0:width, :] = accelerator_frame
+        output_frame = np.concatenate((output_frame, new_accelerator_frame), axis=0)
 
         # save the frame
         output_video.write(output_frame)
